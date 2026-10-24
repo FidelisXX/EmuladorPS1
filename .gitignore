@@ -1,0 +1,6 @@
+# Jogos e BIOS não vão para o repositório (tamanho e direitos autorais)
+roms/*
+!roms/.gitkeep
+bios/*
+!bios/.gitkeep
+*.part

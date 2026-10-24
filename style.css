@@ -1,0 +1,37 @@
+:root { color-scheme: dark; }
+body { margin: 0; background: #111318; color: #e6e8ee; font-family: system-ui, sans-serif; }
+main { max-width: 640px; margin: 0 auto; padding: 32px 16px; }
+h1 { margin: 0 0 4px; }
+.sub { color: #9aa1b2; }
+code { background: #1e222b; padding: 1px 5px; border-radius: 4px; }
+.erro { color: #ff8a80; }
+.erro a { color: inherit; }
+.bios { display: block; margin: 20px 0; }
+select { background: #1e222b; color: inherit; border: 1px solid #333a48; border-radius: 6px; padding: 6px; }
+.acoes { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin: 20px 0; }
+.acoes .bios { margin: 0; }
+.botao { background: #4f6bed; color: #fff; padding: 9px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+.botao:hover { background: #4560d8; }
+.envio { background: #1a1d25; border: 1px solid #262b36; border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+.envio-topo { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 14px; }
+.envio-topo span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.envio progress { width: 100%; height: 8px; accent-color: #4f6bed; }
+.link { background: none; border: 0; color: #9aa1b2; padding: 6px 0 0; cursor: pointer; font: inherit; font-size: 14px; }
+ul { list-style: none; padding: 0; }
+li { display: flex; gap: 8px; margin-bottom: 8px; }
+li a { flex: 1; min-width: 0; padding: 12px 14px; background: #1a1d25; border: 1px solid #262b36;
+       border-radius: 8px; color: inherit; text-decoration: none; overflow-wrap: anywhere; }
+li a:hover { border-color: #4f6bed; }
+.excluir { background: #1a1d25; border: 1px solid #262b36; border-radius: 8px; color: #ff8a80; padding: 0 14px;
+           cursor: pointer; font: inherit; font-size: 14px; }
+.excluir:hover { border-color: #ff8a80; }
+
+body.play { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); box-sizing: border-box; }
+.voltar { color: #9aa1b2; padding: 8px 16px; text-decoration: none; }
+#game { flex: 1; min-height: 0; touch-action: none; user-select: none; -webkit-user-select: none; }
+
+/* Celular deitado: esconde o link para sobrar tela para o jogo */
+@media (pointer: coarse) and (orientation: landscape) {
+  .voltar { display: none; }
+}

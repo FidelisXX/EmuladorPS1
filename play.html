@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#111318">
+  <title>PS1 Web</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="play">
+  <a class="voltar" href="index.html">&larr; Jogos</a>
+  <div id="game"></div>
+
+  <script>
+    const p = new URLSearchParams(location.search);
+    const jogo = p.get("game");
+    if (!jogo) location.href = "index.html";
+
+    // Configuração do EmulatorJS (https://emulatorjs.org/docs)
+    EJS_player = "#game";
+    EJS_core = "psx";                 // pcsx_rearmed (roda sem BIOS via HLE)
+    EJS_gameUrl = "roms/" + encodeURIComponent(jogo);
+    EJS_gameName = jogo.replace(/\.[^.]+$/, "");
+    if (p.get("bios")) EJS_biosUrl = "bios/" + encodeURIComponent(p.get("bios"));
+    EJS_language = "pt-BR";
+    EJS_color = "#4f6bed";
+    EJS_startOnLoaded = true;
+    // Em telas de toque, liga o controle virtual do EmulatorJS
+    if (matchMedia("(pointer: coarse)").matches) {
+      EJS_defaultOptions = { "virtual-gamepad": "enabled" };
+    }
+    EJS_pathtodata = "https://cdn.emulatorjs.org/stable/data/";
+    document.title = EJS_gameName + " - PS1 Web";
+  </script>
+  <script src="https://cdn.emulatorjs.org/stable/data/loader.js"></script>
+</body>
+</html>
