@@ -9,10 +9,10 @@
 <body>
   <main>
     <h1>PS1 Web</h1>
-    <p class="sub">Envie jogos pelo botão abaixo ou coloque-os em <code>roms/</code>. A BIOS (opcional) vai em <code>bios/</code>.</p>
+    <p id="descricao" class="sub"></p>
 
     <div class="acoes">
-      <label class="bios">
+      <label id="bios-campo" class="bios" hidden>
         BIOS:
         <select id="bios"><option value="">Nenhuma (HLE)</option></select>
       </label>
@@ -31,22 +31,29 @@
 
     <ul id="jogos"></ul>
     <p id="vazio" class="sub" hidden>Nenhum jogo ainda. Use “+ Enviar jogo”.</p>
-    <p id="erro" class="erro" hidden>Servidor não está rodando. Abra pelo <code>iniciar.bat</code> e acesse
-      <a href="http://localhost:8080">http://localhost:8080</a> (não abra o index.html direto).</p>
   </main>
 
+  <script src="biblioteca.js"></script>
   <script>
+    const ROM_EXT = [".chd", ".pbp", ".iso", ".bin", ".img", ".zip", ".7z"];
     const biosSel = document.getElementById("bios");
     const lista = document.getElementById("jogos");
     const aviso = document.getElementById("aviso");
     const inputArquivo = document.getElementById("arquivo");
+    inputArquivo.accept = ROM_EXT.join(",");
+
+    // "servidor": server.js rodando (PC/celular na rede). "local": sem servidor (Vercel), jogos no navegador.
+    let modo = "local";
     let precisaPin = false;
-    let formatos = [];
 
     function mostrarAviso(msg, erro) {
       aviso.textContent = msg;
       aviso.className = erro ? "erro" : "sub";
       aviso.hidden = !msg;
+    }
+
+    function tamanhoLegivel(bytes) {
+      return bytes >= 1e9 ? (bytes / 1e9).toFixed(1) + " GB" : Math.round(bytes / 1e6) + " MB";
     }
 
     // PIN só é pedido no modo celular; fica guardado até fechar a aba
@@ -60,49 +67,71 @@
       return sessionStorage.getItem("pin");
     }
 
-    fetch("/api/info").then((r) => r.json()).then((info) => {
-      precisaPin = info.pin;
-      formatos = info.formatos;
-      inputArquivo.accept = formatos.join(",");
-    });
+    async function detectarModo() {
+      try {
+        const r = await fetch("/api/info");
+        if (r.ok && (r.headers.get("content-type") || "").includes("json")) {
+          const info = await r.json();
+          modo = "servidor";
+          precisaPin = info.pin;
+        }
+      } catch {}
 
-    fetch("/api/bios").then((r) => r.json()).then((arquivos) => {
-      for (const f of arquivos) biosSel.add(new Option(f, f));
-      const salva = localStorage.getItem("bios");
-      if (salva && arquivos.includes(salva)) biosSel.value = salva;
-      else if (arquivos.length) biosSel.value = arquivos[0];
-    });
+      document.getElementById("descricao").innerHTML = modo === "servidor"
+        ? "Envie jogos pelo botão abaixo ou coloque-os em <code>roms/</code>. A BIOS (opcional) vai em <code>bios/</code>."
+        : "Os jogos ficam salvos <strong>só neste navegador</strong>, neste aparelho. Nada é enviado para a internet.";
+
+      if (modo === "servidor") {
+        document.getElementById("bios-campo").hidden = false;
+        const arquivos = await fetch("/api/bios").then((r) => r.json());
+        for (const f of arquivos) biosSel.add(new Option(f, f));
+        const salva = localStorage.getItem("bios");
+        if (salva && arquivos.includes(salva)) biosSel.value = salva;
+        else if (arquivos.length) biosSel.value = arquivos[0];
+      }
+    }
     biosSel.addEventListener("change", () => localStorage.setItem("bios", biosSel.value));
 
-    function carregarJogos() {
-      return fetch("/api/roms").then((r) => r.json()).then((arquivos) => {
-        lista.replaceChildren();
-        document.getElementById("vazio").hidden = arquivos.length > 0;
-        for (const f of arquivos) {
-          const li = document.createElement("li");
-          const a = document.createElement("a");
-          a.textContent = f.replace(/\.[^.]+$/, "");
-          a.href = "#";
-          a.onclick = (e) => {
-            e.preventDefault();
-            const p = new URLSearchParams({ game: f });
-            if (biosSel.value) p.set("bios", biosSel.value);
-            location.href = "play.html?" + p;
-          };
-          const excluir = document.createElement("button");
-          excluir.type = "button";
-          excluir.className = "excluir";
-          excluir.title = "Excluir";
-          excluir.textContent = "Excluir";
-          excluir.onclick = () => excluirJogo(f);
-          li.append(a, excluir);
-          lista.appendChild(li);
-        }
-      }).catch(() => { document.getElementById("erro").hidden = false; });
+    async function carregarJogos() {
+      let arquivos = [];
+      try {
+        arquivos = modo === "servidor" ? await fetch("/api/roms").then((r) => r.json()) : await Biblioteca.listar();
+      } catch {
+        mostrarAviso("Não foi possível carregar a lista de jogos.", true);
+      }
+      lista.replaceChildren();
+      document.getElementById("vazio").hidden = arquivos.length > 0;
+      for (const f of arquivos) {
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.textContent = f.replace(/\.[^.]+$/, "");
+        a.href = "#";
+        a.onclick = (e) => {
+          e.preventDefault();
+          const p = new URLSearchParams({ game: f, fonte: modo });
+          if (modo === "servidor" && biosSel.value) p.set("bios", biosSel.value);
+          location.href = "play.html?" + p;
+        };
+        const excluir = document.createElement("button");
+        excluir.type = "button";
+        excluir.className = "excluir";
+        excluir.textContent = "Excluir";
+        excluir.onclick = () => excluirJogo(f);
+        li.append(a, excluir);
+        lista.appendChild(li);
+      }
     }
 
     async function excluirJogo(nome) {
-      if (!confirm(`Excluir "${nome}"?\nO arquivo será apagado da pasta roms.`)) return;
+      const onde = modo === "servidor" ? "da pasta roms" : "deste navegador";
+      if (!confirm(`Excluir "${nome}"?\nO jogo será apagado ${onde}.`)) return;
+
+      if (modo === "local") {
+        await Biblioteca.excluir(nome);
+        mostrarAviso(`"${nome}" excluído.`);
+        return carregarJogos();
+      }
+
       for (let tentativa = 0; tentativa < 2; tentativa++) {
         const headers = {};
         const pin = obterPin(tentativa > 0);
@@ -116,26 +145,30 @@
       mostrarAviso("PIN incorreto.", true);
     }
 
-    // Envio com XMLHttpRequest para ter barra de progresso
+    // Envio para o servidor com XMLHttpRequest para ter barra de progresso
     let envioAtual = null;
     document.getElementById("envio-cancelar").onclick = () => envioAtual && envioAtual.abort();
 
-    function enviarArquivo(arquivo, pin) {
+    function mostrarEnvio(nome, texto) {
+      document.getElementById("envio-nome").textContent = nome;
+      document.getElementById("envio-pct").textContent = texto;
+      document.getElementById("envio").hidden = false;
+    }
+
+    function enviarParaServidor(arquivo, pin) {
       return new Promise((resolve) => {
         const xhr = new XMLHttpRequest();
         envioAtual = xhr;
-        const pct = document.getElementById("envio-pct");
         const barra = document.getElementById("envio-barra");
-        document.getElementById("envio-nome").textContent = arquivo.name;
-        pct.textContent = "0%";
         barra.value = 0;
-        document.getElementById("envio").hidden = false;
+        document.getElementById("envio-cancelar").hidden = false;
+        mostrarEnvio(arquivo.name, "0%");
 
         xhr.upload.onprogress = (e) => {
           if (!e.lengthComputable) return;
           const p = Math.floor((e.loaded / e.total) * 100);
           barra.value = p;
-          pct.textContent = p + "%";
+          document.getElementById("envio-pct").textContent = p + "%";
         };
         xhr.onload = () => resolve({ status: xhr.status, texto: xhr.responseText });
         xhr.onerror = () => resolve({ status: 0, texto: "Falha de conexão durante o envio." });
@@ -146,6 +179,34 @@
       });
     }
 
+    async function salvarNoNavegador(arquivo) {
+      envioAtual = {};
+      document.getElementById("envio-barra").removeAttribute("value"); // barra animada, sem %
+      document.getElementById("envio-cancelar").hidden = true;
+      mostrarEnvio(arquivo.name, "Salvando " + tamanhoLegivel(arquivo.size) + "…");
+      try {
+        await Biblioteca.salvar(arquivo);
+        return { status: 201 };
+      } catch (err) {
+        const texto = err && err.name === "ConstraintError" ? "Já existe um jogo com esse nome."
+          : err && err.name === "QuotaExceededError" ? "Sem espaço no navegador para este jogo."
+          : "Não foi possível salvar: " + (err && err.message);
+        return { status: 500, texto };
+      }
+    }
+
+    async function enviarParaServidorComPin(arquivo) {
+      let r;
+      for (let tentativa = 0; tentativa < 2; tentativa++) {
+        const pin = obterPin(tentativa > 0);
+        if (precisaPin && !pin) return { status: -1, texto: "Envio cancelado." };
+        r = await enviarParaServidor(arquivo, pin);
+        if (r.status !== 401) break;
+        sessionStorage.removeItem("pin");
+      }
+      return r;
+    }
+
     inputArquivo.addEventListener("change", async () => {
       const arquivos = [...inputArquivo.files];
       inputArquivo.value = "";
@@ -154,18 +215,11 @@
 
       for (const arquivo of arquivos) {
         const ext = arquivo.name.slice(arquivo.name.lastIndexOf(".")).toLowerCase();
-        if (formatos.length && !formatos.includes(ext)) {
-          mostrarAviso(`"${arquivo.name}": formato não aceito. Use ${formatos.join(", ")}.`, true);
+        if (!ROM_EXT.includes(ext)) {
+          mostrarAviso(`"${arquivo.name}": formato não aceito. Use ${ROM_EXT.join(", ")}.`, true);
           continue;
         }
-        let r;
-        for (let tentativa = 0; tentativa < 2; tentativa++) {
-          const pin = obterPin(tentativa > 0);
-          if (precisaPin && !pin) { r = { status: -1, texto: "Envio cancelado." }; break; }
-          r = await enviarArquivo(arquivo, pin);
-          if (r.status !== 401) break;
-          sessionStorage.removeItem("pin");
-        }
+        const r = modo === "servidor" ? await enviarParaServidorComPin(arquivo) : await salvarNoNavegador(arquivo);
         if (r.status >= 200 && r.status < 300) enviados.push(arquivo.name);
         else { mostrarAviso(`"${arquivo.name}": ${r.texto}`, true); if (r.status === -1) break; }
       }
@@ -179,7 +233,7 @@
     // Evita fechar a aba no meio de um envio
     window.addEventListener("beforeunload", (e) => { if (envioAtual) e.preventDefault(); });
 
-    carregarJogos();
+    detectarModo().then(carregarJogos);
   </script>
 </body>
 </html>

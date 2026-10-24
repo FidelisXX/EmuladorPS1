@@ -13,27 +13,44 @@
   <a class="voltar" href="index.html">&larr; Jogos</a>
   <div id="game"></div>
 
+  <script src="biblioteca.js"></script>
   <script>
-    const p = new URLSearchParams(location.search);
-    const jogo = p.get("game");
-    if (!jogo) location.href = "index.html";
+    (async () => {
+      const p = new URLSearchParams(location.search);
+      const jogo = p.get("game");
+      if (!jogo) return (location.href = "index.html");
 
-    // Configuração do EmulatorJS (https://emulatorjs.org/docs)
-    EJS_player = "#game";
-    EJS_core = "psx";                 // pcsx_rearmed (roda sem BIOS via HLE)
-    EJS_gameUrl = "roms/" + encodeURIComponent(jogo);
-    EJS_gameName = jogo.replace(/\.[^.]+$/, "");
-    if (p.get("bios")) EJS_biosUrl = "bios/" + encodeURIComponent(p.get("bios"));
-    EJS_language = "pt-BR";
-    EJS_color = "#4f6bed";
-    EJS_startOnLoaded = true;
-    // Em telas de toque, liga o controle virtual do EmulatorJS
-    if (matchMedia("(pointer: coarse)").matches) {
-      EJS_defaultOptions = { "virtual-gamepad": "enabled" };
-    }
-    EJS_pathtodata = "https://cdn.emulatorjs.org/stable/data/";
-    document.title = EJS_gameName + " - PS1 Web";
+      // Configuração do EmulatorJS (https://emulatorjs.org/docs)
+      window.EJS_player = "#game";
+      window.EJS_core = "psx";          // pcsx_rearmed (roda sem BIOS via HLE)
+      window.EJS_gameName = jogo.replace(/\.[^.]+$/, "");
+      window.EJS_language = "pt-BR";
+      window.EJS_color = "#4f6bed";
+      window.EJS_startOnLoaded = true;
+      window.EJS_pathtodata = "https://cdn.emulatorjs.org/stable/data/";
+      // Em telas de toque, liga o controle virtual do EmulatorJS
+      if (matchMedia("(pointer: coarse)").matches) {
+        window.EJS_defaultOptions = { "virtual-gamepad": "enabled" };
+      }
+
+      if (p.get("fonte") === "local") {
+        // Jogo salvo no navegador: o EmulatorJS aceita o arquivo direto
+        const arquivo = await Biblioteca.obter(jogo).catch(() => null);
+        if (!arquivo) {
+          alert("Jogo não encontrado neste navegador. Envie-o novamente.");
+          return (location.href = "index.html");
+        }
+        window.EJS_gameUrl = arquivo;
+      } else {
+        window.EJS_gameUrl = "roms/" + encodeURIComponent(jogo);
+        if (p.get("bios")) window.EJS_biosUrl = "bios/" + encodeURIComponent(p.get("bios"));
+      }
+
+      document.title = window.EJS_gameName + " - PS1 Web";
+      const loader = document.createElement("script");
+      loader.src = window.EJS_pathtodata + "loader.js";
+      document.body.appendChild(loader);
+    })();
   </script>
-  <script src="https://cdn.emulatorjs.org/stable/data/loader.js"></script>
 </body>
 </html>
