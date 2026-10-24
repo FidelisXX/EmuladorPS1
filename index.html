@@ -11,6 +11,20 @@
     <h1>PS1 Web</h1>
     <p id="descricao" class="sub"></p>
 
+    <section id="conta" class="conta" hidden>
+      <form id="login" hidden>
+        <span>Salve seu progresso na nuvem e continue em outro aparelho:</span>
+        <div class="login-linha">
+          <input id="email" type="email" placeholder="seu@email.com" required autocomplete="email">
+          <button class="botao" type="submit">Entrar</button>
+        </div>
+      </form>
+      <div id="logado" hidden>
+        <span>☁ Saves na nuvem: <strong id="email-logado"></strong></span>
+        <button id="sair" type="button" class="link">Sair</button>
+      </div>
+    </section>
+
     <div class="acoes">
       <label id="bios-campo" class="bios" hidden>
         BIOS:
@@ -33,7 +47,29 @@
     <p id="vazio" class="sub" hidden>Nenhum jogo ainda. Use “+ Enviar jogo”.</p>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="nuvem.js"></script>
   <script src="biblioteca.js"></script>
+  <script>
+    // Login para saves na nuvem (Supabase)
+    function mostrarConta(usuario) {
+      document.getElementById("conta").hidden = !Nuvem.disponivel;
+      document.getElementById("login").hidden = !!usuario;
+      document.getElementById("logado").hidden = !usuario;
+      document.getElementById("email-logado").textContent = usuario ? usuario.email : "";
+    }
+    Nuvem.usuario().then(mostrarConta);
+    Nuvem.aoMudarLogin(mostrarConta);
+
+    document.getElementById("login").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("email").value.trim();
+      const { error } = await Nuvem.entrar(email);
+      mostrarAviso(error ? "Não foi possível enviar o link: " + error.message
+        : `Enviamos um link para ${email}. Abra-o neste aparelho para entrar.`, !!error);
+    });
+    document.getElementById("sair").onclick = () => Nuvem.sair();
+  </script>
   <script>
     const ROM_EXT = [".chd", ".pbp", ".iso", ".bin", ".img", ".zip", ".7z"];
     const biosSel = document.getElementById("bios");

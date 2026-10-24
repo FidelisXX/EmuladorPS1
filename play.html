@@ -13,7 +13,90 @@
   <a class="voltar" href="index.html">&larr; Jogos</a>
   <div id="game"></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="nuvem.js"></script>
   <script src="biblioteca.js"></script>
+  <script>
+    // Sincroniza memory card e save state com o Supabase (só quando logado)
+    function ligarSavesNaNuvem(jogo) {
+      const MEMCARD = "memcard.srm";
+      const ESTADO = "estado.state";
+      const mensagem = (texto) => window.EJS_emulator && window.EJS_emulator.displayMessage(texto);
+      let ultimoCartao = null;
+      let enviandoCartao = false;
+
+      const iguais = (a, b) => a && b && a.length === b.length && a.every((v, i) => v === b[i]);
+
+      // Salvamento automático do memory card a cada 30 s (o padrão do EmulatorJS é 5 min)
+      window.EJS_defaultOptions = Object.assign({}, window.EJS_defaultOptions, { "save-save-interval": "30" });
+
+      window.EJS_onGameStart = async () => {
+        const emu = window.EJS_emulator;
+        const gm = emu.gameManager;
+
+        // Ao abrir: o memory card da nuvem substitui o do navegador
+        try {
+          const cartao = await Nuvem.baixar(jogo, MEMCARD);
+          if (cartao) {
+            const p = gm.getSaveFilePath();
+            try { gm.FS.unlink(p); } catch {}
+            gm.FS.writeFile(p, cartao);
+            gm.loadSaveFiles();
+            ultimoCartao = cartao;
+            mensagem("☁ Save da nuvem carregado");
+          }
+        } catch (err) {
+          console.error(err);
+          mensagem("☁ Erro ao baixar o save da nuvem");
+        }
+
+        // Sempre que o EmulatorJS grava o memory card, envia se mudou
+        emu.on("saveSaveFiles", async (dados) => {
+          if (!dados || enviandoCartao || iguais(dados, ultimoCartao)) return;
+          enviandoCartao = true;
+          const copia = dados.slice();
+          try {
+            await Nuvem.enviar(jogo, MEMCARD, copia);
+            ultimoCartao = copia;
+          } catch (err) {
+            console.error(err);
+            mensagem("☁ Erro ao enviar o save para a nuvem");
+          } finally {
+            enviandoCartao = false;
+          }
+        });
+
+        // Ao sair da aba ou trocar de app no celular, força um salvamento
+        document.addEventListener("visibilitychange", () => {
+          if (document.hidden && emu.started) gm.saveSaveFiles();
+        });
+      };
+
+      // Botões "Salvar/Carregar estado" passam a usar a nuvem
+      window.EJS_onSaveState = async ({ state }) => {
+        mensagem("☁ Salvando estado na nuvem…");
+        try {
+          await Nuvem.enviar(jogo, ESTADO, state);
+          mensagem("☁ Estado salvo na nuvem");
+        } catch (err) {
+          console.error(err);
+          mensagem("☁ Erro ao salvar o estado na nuvem");
+        }
+      };
+
+      window.EJS_onLoadState = async () => {
+        try {
+          const estado = await Nuvem.baixar(jogo, ESTADO);
+          if (!estado) return mensagem("☁ Nenhum estado salvo na nuvem");
+          window.EJS_emulator.gameManager.loadState(estado);
+          mensagem("☁ Estado carregado da nuvem");
+        } catch (err) {
+          console.error(err);
+          mensagem("☁ Erro ao carregar o estado da nuvem");
+        }
+      };
+    }
+  </script>
   <script>
     (async () => {
       const p = new URLSearchParams(location.search);
@@ -45,6 +128,8 @@
         window.EJS_gameUrl = "roms/" + encodeURIComponent(jogo);
         if (p.get("bios")) window.EJS_biosUrl = "bios/" + encodeURIComponent(p.get("bios"));
       }
+
+      if (await Nuvem.usuario()) ligarSavesNaNuvem(jogo);
 
       document.title = window.EJS_gameName + " - PS1 Web";
       const loader = document.createElement("script");
